@@ -3,11 +3,14 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+}
+.dark {
   color-scheme: dark;
 }
 
 .glass {
-  @apply bg-card/60 backdrop-blur-md border border-white/5 shadow-soft;
+  @apply bg-white/60 backdrop-blur-md border border-black/10 shadow-soft dark:bg-card/60 dark:border-white/5;
 }
 
 .btn {
@@ -17,11 +20,11 @@
   @apply btn bg-accent text-accent-foreground hover:bg-emerald-400/90;
 }
 .btn-muted {
-  @apply btn bg-muted text-muted-foreground hover:bg-muted/80;
+  @apply btn bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted/80;
 }
 
 .card {
-  @apply glass rounded-xl p-4 hover:border-white/10 hover:shadow-lg transition-shadow;
+  @apply glass rounded-xl p-4 hover:border-black/20 hover:shadow-lg transition-shadow dark:hover:border-white/10;
 }
 
 /* Loading skeleton animation */
@@ -36,6 +39,6 @@
 }
 
 .badge {
-  @apply inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground;
+  @apply inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:bg-muted dark:text-muted-foreground;
 }
 

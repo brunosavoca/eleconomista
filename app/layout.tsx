@@ -1,6 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import AuthGate from '@/components/AuthGate'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export const metadata: Metadata = {
   title: 'El Economista - Tendencias & Redacción Asistida',
@@ -13,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" className="dark">
-      <body className="bg-primary text-primary-foreground antialiased min-h-screen">
+    <html lang="es">
+      <body className="bg-white text-zinc-900 antialiased min-h-screen dark:bg-primary dark:text-primary-foreground">
         <div className="w-full">
           {/* Top brand bar */}
           <div className="bg-black text-white">
@@ -23,8 +24,9 @@ export default function RootLayout({
                 <img src="/logo-eleconomista.svg" alt="El Economista" className="h-6 w-auto" />
                 {/* <div className="text-cyan-300 text-[11px] leading-none font-semibold hidden md:block">DEV</div> */}
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-3">
                 <div className="text-cyan-300 text-[11px] leading-none font-semibold hidden md:block">DEV</div>
+                <ThemeToggle />
               </div>
               {false && (
                 <div className="flex items-center gap-6 text-sm text-zinc-300 ml-auto">

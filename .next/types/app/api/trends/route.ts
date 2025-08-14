@@ -1,4 +1,4 @@
-// File: /Users/brunosavoca/MLProjects/eleconomista/app/api/trends/route.ts
+// File: /workspace/app/api/trends/route.ts
 import * as entry from '../../../../../app/api/trends/route.js'
 import type { NextRequest } from 'next/server.js'
 
