@@ -1,6 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import AuthGate from '@/components/AuthGate'
+import ThemePicker from '@/components/ThemePicker'
 
 export const metadata: Metadata = {
   title: 'El Economista - Tendencias & Redacción Asistida',
@@ -13,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" className="dark">
-      <body className="bg-primary text-primary-foreground antialiased min-h-screen">
+    <html lang="es" suppressHydrationWarning>
+      <body className="bg-background text-foreground antialiased min-h-screen">
         <div className="w-full">
           {/* Top brand bar */}
           <div className="bg-black text-white">
@@ -23,7 +24,8 @@ export default function RootLayout({
                 <img src="/logo-eleconomista.svg" alt="El Economista" className="h-6 w-auto" />
                 {/* <div className="text-cyan-300 text-[11px] leading-none font-semibold hidden md:block">DEV</div> */}
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-3">
+                <ThemePicker />
                 <div className="text-cyan-300 text-[11px] leading-none font-semibold hidden md:block">DEV</div>
               </div>
               {false && (
