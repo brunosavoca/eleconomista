@@ -146,6 +146,7 @@ const CACHE_TTL = 60000 // 1 minuto de cache
 
 export async function GET() {
   try {
+    const t0 = Date.now()
     // Si no hay API key, NO devolvemos mock: informamos que no hay datos disponibles
     if (!process.env.XAI_API_KEY) {
       console.warn('No XAI_API_KEY found, returning empty data with message')
@@ -156,6 +157,9 @@ export async function GET() {
           sourcesCount: 0,
           trendCount: 0,
           selectedAccountsCount: 0,
+          timings: {
+            totalMs: Date.now() - t0,
+          },
         },
         searchParams: {
           accounts: [],
@@ -176,6 +180,10 @@ export async function GET() {
           sourcesCount: undefined,
           trendCount: result.length,
           selectedAccountsCount: undefined,
+          timings: {
+            totalMs: Date.now() - t0,
+            cacheHit: true,
+          },
         },
         searchParams: {
           accounts: getRandomElements(X_ACCOUNTS_SETS, 1)[0].slice(0, 6),
@@ -184,11 +192,13 @@ export async function GET() {
       })
     }
 
+    const setupStart = Date.now()
     const model = xai('grok-3-latest')
     // Cap at 10 handles per xAI API limits
     const selectedAccounts = getRandomElements(X_ACCOUNTS_SETS, 2).flat().slice(0, 10)
     const dynamicPrompt = generateDynamicPrompt()
 
+    const genStart = Date.now()
     const { text, sources } = await generateText({
       model,
       prompt: dynamicPrompt,
@@ -208,9 +218,11 @@ export async function GET() {
       // Hint para forzar URLs en la salida
       maxRetries: 1,
     })
+    const genEnd = Date.now()
 
     // Try parse JSON block
     let parsed: any = null
+    const parseStart = Date.now()
     try {
       parsed = JSON.parse(text)
     } catch {
@@ -220,35 +232,63 @@ export async function GET() {
         parsed = JSON.parse(text.slice(start, end + 1))
       }
     }
+    const parseEnd = Date.now()
 
     let trends = Array.isArray(parsed?.trends) ? parsed.trends : []
 
     // Normalize structure con IDs únicos basados en timestamp
-    const timestamp = Date.now()
+    const ts = Date.now()
+    const normStart = Date.now()
     const normalized = trends
-      .map((t: any, idx: number) => ({
-      id: `${timestamp}-${idx}`,
-      title: String(t.title ?? '').slice(0, 120),
-      summary: String(t.summary ?? ''),
-      score: Number.isFinite(t.score) ? Number(t.score) : Math.floor(Math.random() * 30 + 50),
-      tags: Array.isArray(t.tags) ? t.tags.map((x: any) => String(x)) : [],
-        // Preferir mapeo por índice de cita si está presente
-        sourceUrl: (() => {
-          const idxFromModel = Number(t.sourceIndex)
-          if (Number.isInteger(idxFromModel) && idxFromModel >= 1 && Array.isArray(sources) && sources.length >= idxFromModel) {
-            const s = (sources as any[])[idxFromModel - 1]
-            if (s?.sourceType === 'url' && typeof s?.url === 'string') return s.url as string
+      .map((t: any, idx: number) => {
+        // Extract source info
+        let sourceUrl: string | undefined = undefined
+        let sourceUser: string | undefined = undefined
+        
+        const idxFromModel = Number(t.sourceIndex)
+        if (Number.isInteger(idxFromModel) && idxFromModel >= 1 && Array.isArray(sources) && sources.length >= idxFromModel) {
+          const s = (sources as any[])[idxFromModel - 1]
+          if (s?.sourceType === 'url' && typeof s?.url === 'string') {
+            sourceUrl = s.url
+            // Try to extract X username from URL
+            const xMatch = s.url.match(/(?:twitter\.com|x\.com)\/(@?\w+)(?:\/status)?/i)
+            if (xMatch && xMatch[1]) {
+              sourceUser = xMatch[1].startsWith('@') ? xMatch[1] : `@${xMatch[1]}`
+            }
           }
+        }
+        
+        if (!sourceUrl) {
           const url = t.sourceUrl ? String(t.sourceUrl) : undefined
-          return url && /^https?:\/\//i.test(url) ? url : undefined
-        })(),
-      timestamp: new Date().toISOString(),
-    }))
+          if (url && /^https?:\/\//i.test(url)) {
+            sourceUrl = url
+            // Try to extract X username from fallback URL
+            const xMatch = url.match(/(?:twitter\.com|x\.com)\/(@?\w+)(?:\/status)?/i)
+            if (xMatch && xMatch[1]) {
+              sourceUser = xMatch[1].startsWith('@') ? xMatch[1] : `@${xMatch[1]}`
+            }
+          }
+        }
+        
+        return {
+          id: `${ts}-${idx}`,
+          title: String(t.title ?? '').slice(0, 120),
+          summary: String(t.summary ?? ''),
+          score: Number.isFinite(t.score) ? Number(t.score) : Math.floor(Math.random() * 30 + 50),
+          tags: Array.isArray(t.tags) ? t.tags.map((x: any) => String(x)) : [],
+          sourceUrl,
+          sourceUser,
+          timestamp: new Date().toISOString(),
+        }
+      })
+    const normEnd = Date.now()
 
     // Filtramos cualquier ítem que aún no tenga URL válida
+    const filterStart = Date.now()
     const withValidSource = normalized.filter((t: any) => typeof t.sourceUrl === 'string' && /^https?:\/\//i.test(t.sourceUrl))
     // Mezclamos un poco el orden para más variación
     const shuffledNormalized = withValidSource.sort(() => 0.5 - Math.random())
+    const filterEnd = Date.now()
     
     // Actualizamos cache
     cachedTrends = shuffledNormalized
@@ -270,6 +310,14 @@ export async function GET() {
         trendCount: shuffledNormalized.length,
         selectedAccountsCount: selectedAccounts.length,
         sourceTypeCounters,
+        timings: {
+          totalMs: Date.now() - t0,
+          setupMs: genStart - setupStart,
+          generateTextMs: genEnd - genStart,
+          parseMs: parseEnd - parseStart,
+          normalizeMs: normEnd - normStart,
+          filterSortMs: filterEnd - filterStart,
+        },
       },
       searchParams: {
         accounts: selectedAccounts.slice(0, 6),
@@ -288,6 +336,9 @@ export async function GET() {
         sourcesCount: 0,
         trendCount: 0,
         selectedAccountsCount: 0,
+        timings: {
+          totalMs: undefined,
+        },
       },
       searchParams: {
         accounts: [],

@@ -9,6 +9,7 @@ type Trend = {
   title: string
   summary: string
   sourceUrl?: string
+  sourceUser?: string
   score: number
   tags: string[]
   timestamp?: string
@@ -50,7 +51,7 @@ export default function HomePage() {
   const [article, setArticle] = useState<string>('')
   const [hasSearched, setHasSearched] = useState(false)
   const [searchInfo, setSearchInfo] = useState<{accounts?: string[], timestamp?: string, cached?: boolean}>({})
-  const [serverStats, setServerStats] = useState<{sourcesCount?: number, trendCount?: number, selectedAccountsCount?: number, sourceTypeCounters?: Record<string, number>} | undefined>(undefined)
+  const [serverStats, setServerStats] = useState<{sourcesCount?: number, trendCount?: number, selectedAccountsCount?: number, sourceTypeCounters?: Record<string, number>, timings?: any} | undefined>(undefined)
   const [lastSearchTime, setLastSearchTime] = useState<Date | null>(null)
   const [serverMessage, setServerMessage] = useState<string | undefined>(undefined)
   const draftRef = useRef<HTMLDivElement | null>(null)
@@ -58,6 +59,7 @@ export default function HomePage() {
   const revealTimerRef = useRef<number | null>(null)
   const [copied, setCopied] = useState(false)
   const [visibleCount, setVisibleCount] = useState(0)
+  const [searchDuration, setSearchDuration] = useState<number | null>(null)
   // const [editorContent, setEditorContent] = useState<string>('')
   const loadingSteps = useMemo(
     () => [
@@ -101,6 +103,7 @@ export default function HomePage() {
     setVisibleCount(0)
     setTopbarProgress(12)
     try {
+      const t0 = performance.now()
       setTopbarProgress(18)
       const res = await fetch('/api/trends', { cache: 'no-store' })
       if (!res.ok) throw new Error('Error fetching trends')
@@ -136,6 +139,10 @@ export default function HomePage() {
         revealTimerRef.current = id
       }
       setTopbarProgress(82)
+      const t1 = performance.now()
+      const duration = Math.round(t1 - t0)
+      setSearchDuration(duration)
+      console.log('[trends] network+parse ms:', duration)
       if (typeof data.message === 'string' && data.message.trim().length > 0) {
         setServerMessage(data.message)
       }
@@ -156,6 +163,8 @@ export default function HomePage() {
     } finally {
       setLoading(false)
       setTopbarProgress(100)
+      const t2 = performance.now()
+      console.log('[trends] total fetch->ready ms:', Math.round(t2))
     }
   }
 
@@ -350,11 +359,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <section className="@container grid grid-cols-1 @md:grid-cols-2 @xl:grid-cols-3 gap-4 perspective-distant">
         {loading && (
           <>
-            <div className="col-span-full flex items-center gap-3 p-3 rounded-md bg-card border border-border">
-              <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+            <div className="col-span-full flex items-center gap-3 p-3 rounded-md bg-gradient-to-r from-card to-card/80 border border-border backdrop-blur-sm">
+              <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin bg-gradient-to-r from-accent/20 to-transparent" />
               <div className="font-medium text-foreground">{currentLoadingStep}</div>
               <div className="ml-auto text-xs text-muted-foreground flex items-center gap-3">
                 <span>economía · finanzas · AR</span>
@@ -368,7 +377,7 @@ export default function HomePage() {
             </div>
 
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="card animate-pulse">
+              <div key={i} className="card animate-pulse" style={{ animationDelay: `${i * 50}ms` }}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="h-5 w-3/4 skeleton" />
                   <div className="h-6 w-20 skeleton" />
@@ -396,17 +405,50 @@ export default function HomePage() {
           </div>
         )}
         {!loading && trends.length === 0 && !hasSearched && (
-          <div className="col-span-full text-muted-foreground">Haz clic en “Buscar tendencias en X” para comenzar.</div>
+          <div className="col-span-full text-muted-foreground">Haz clic en "Buscar tendencias en X" para comenzar.</div>
+        )}
+        {!loading && trends.length > 0 && searchDuration && (
+          <div className="col-span-full flex items-center justify-between mb-4">
+            <div className="text-sm text-muted-foreground">
+              {searchInfo.cached ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-yellow-500"></span>
+                  Resultados del caché · {trends.length} tendencias encontradas
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                  {trends.length} tendencias encontradas en {(searchDuration / 1000).toFixed(1)}s
+                  {serverStats?.timings?.generateTextMs && (
+                    <span className="text-xs opacity-60">
+                      · IA: {(serverStats.timings.generateTextMs / 1000).toFixed(1)}s
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+            {serverStats?.sourcesCount != null && serverStats.sourcesCount > 0 && (
+              <div className="text-xs text-muted-foreground">
+                {serverStats.sourcesCount} fuentes consultadas
+              </div>
+            )}
+          </div>
         )}
         {!loading && trends.length > 0 && visibleCount < trends.length && (
           <div className="col-span-full text-xs text-muted-foreground" aria-live="polite">
             Mostrando {visibleCount} de {trends.length} resultados…
           </div>
         )}
-        {trends.slice(0, visibleCount || trends.length).map((t) => (
+        {trends.slice(0, visibleCount || trends.length).map((t, idx) => (
           <article
             key={t.id}
-            className={`card group relative cursor-pointer select-none ${selectedIds.has(t.id) ? 'ring-2 ring-accent/60' : ''}`}
+            className={`card card-enter group relative cursor-pointer select-none transform-3d transition-all hover:rotate-x-2 hover:-rotate-y-3 hover:scale-105 ${selectedIds.has(t.id) ? 'ring-2 ring-accent/60' : ''}`}
+            style={{ 
+              animationDelay: `${idx * 40}ms`,
+              background: t.score >= 85 ? 
+                `linear-gradient(135deg in oklch, color-mix(in oklch, var(--card) 95%, transparent), color-mix(in oklch, var(--card) 90%, orange 5%))` : 
+                undefined
+            }}
             onClick={() => toggleSelect(t.id)}
             role="button"
             aria-pressed={selectedIds.has(t.id)}
@@ -419,14 +461,14 @@ export default function HomePage() {
             }}
           >
             {selectedIds.has(t.id) && (
-              <div className="absolute inset-0 rounded-xl bg-accent/5 pointer-events-none" />
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-accent/10 to-accent/5 pointer-events-none" />
             )}
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
                 <h3 className="font-semibold leading-tight pr-2">{t.title}</h3>
                 {t.score >= 80 && (
                   <div className="inline-flex items-center gap-1 mt-1">
-                    <span className="text-xs font-medium text-orange-500">🔥 Trending</span>
+                    <span className="text-xs font-medium bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">🔥 Trending</span>
                   </div>
                 )}
               </div>
@@ -438,22 +480,39 @@ export default function HomePage() {
               </button>
             </div>
             <p className="mt-2 text-sm text-muted-foreground line-clamp-4">{t.summary}</p>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="flex gap-2">
-                {t.tags.slice(0, 3).map(tag => (
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="flex gap-2 flex-wrap flex-1 min-w-0">
+                {t.tags.slice(0, 2).map(tag => (
                   <span key={tag} className="badge">#{tag}</span>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {t.score >= 70 && (
                   <div className="flex gap-0.5">
                     {[...Array(Math.min(3, Math.floor(t.score / 30)))].map((_, i) => (
-                      <span key={i} className="text-xs text-orange-400">●</span>
+                      <span key={i} className="text-xs bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">●</span>
                     ))}
                   </div>
                 )}
+                {/* Show source type icon */}
                 {t.sourceUrl && (
-                  <a className="text-xs text-accent hover:underline" href={t.sourceUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Fuente</a>
+                  t.sourceUser ? (
+                    // X/Twitter source - show X logo
+                    <svg className="w-3 h-3 text-muted-foreground" fill="currentColor" viewBox="0 0 24 24" aria-label="Fuente: X">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                  ) : (
+                    // News/Web source - show globe icon
+                    <svg className="w-3.5 h-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-label="Fuente: Web">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                  )
+                )}
+                {t.sourceUser && (
+                  <span className="text-xs text-muted-foreground">{t.sourceUser}</span>
+                )}
+                {t.sourceUrl && (
+                  <a className="text-xs text-accent hover:underline whitespace-nowrap" href={t.sourceUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Fuente</a>
                 )}
               </div>
             </div>
@@ -462,9 +521,14 @@ export default function HomePage() {
       </section>
 
       {article && (
-        <section ref={draftRef} className="mt-8 card">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-semibold">Borrador generado</h2>
+        <>
+          <div className="my-12 border-t border-border/50"></div>
+          <section ref={draftRef} className="mt-8 bg-card/50 rounded-xl border-2 border-accent/20 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">Borrador generado</h2>
+              <p className="text-sm text-muted-foreground mt-1">Artículo basado en las tendencias seleccionadas</p>
+            </div>
             <Button
               variant="secondary"
               onClick={async () => {
@@ -495,15 +559,16 @@ export default function HomePage() {
             ref={textareaRef}
             value={article}
             onChange={(e) => setArticle(e.target.value)}
-            className="w-full min-h-[520px] resize-y rounded-md border border-border bg-card text-foreground p-4 focus:outline-none focus:ring-2 focus:ring-accent shadow-inner"
+            className="w-full min-h-[520px] resize-y rounded-lg border border-border/50 bg-background/50 text-foreground p-4 focus:outline-none focus:ring-2 focus:ring-accent font-mono text-sm leading-relaxed"
             spellCheck={false}
           />
         </section>
+        </>
       )}
 
       {generating && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="glass rounded-xl p-6 w-[min(680px,92vw)]">
+          <div className="liquid-glass rounded-2xl p-8 w-[min(680px,92vw)] shadow-2xl">
             <div className="flex items-center gap-4">
               <div className="h-10 w-10 rounded-full border-2 border-accent border-t-transparent animate-spin" />
               <div>
