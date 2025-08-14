@@ -11,6 +11,7 @@ type Trend = {
   sourceUrl?: string
   score: number
   tags: string[]
+  timestamp?: string
 }
 
 function stripMarkdown(input: string): string {
@@ -48,6 +49,8 @@ export default function HomePage() {
   const [generating, setGenerating] = useState(false)
   const [article, setArticle] = useState<string>('')
   const [hasSearched, setHasSearched] = useState(false)
+  const [searchInfo, setSearchInfo] = useState<{accounts?: string[], timestamp?: string, cached?: boolean}>({})
+  const [lastSearchTime, setLastSearchTime] = useState<Date | null>(null)
   const draftRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [copied, setCopied] = useState(false)
@@ -72,11 +75,18 @@ export default function HomePage() {
   const fetchTrends = async () => {
     setHasSearched(true)
     setLoading(true)
+    setSelectedIds(new Set()) // Limpiar selección al buscar nuevas tendencias
     try {
       const res = await fetch('/api/trends', { cache: 'no-store' })
       if (!res.ok) throw new Error('Error fetching trends')
       const data = await res.json()
       setTrends(data.trends as Trend[])
+      setSearchInfo({
+        accounts: data.searchParams?.accounts,
+        timestamp: data.searchParams?.timestamp,
+        cached: data.cached || false
+      })
+      setLastSearchTime(new Date())
     } catch (err) {
       console.error(err)
     } finally {
@@ -172,13 +182,42 @@ export default function HomePage() {
       
       <section className="mb-8">
         <div className="card flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
+          <div className="flex-1">
             <h2 className="text-lg font-semibold leading-tight">Descubrir tendencias en X</h2>
             <p className="text-sm text-muted-foreground mt-1">Economía y finanzas · Argentina · masculino 20–60</p>
+            {lastSearchTime && (
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2">
+                <span className={`inline-block w-2 h-2 rounded-full ${searchInfo.cached ? 'bg-yellow-500' : 'bg-green-500'} animate-pulse`}></span>
+                Última búsqueda: {lastSearchTime.toLocaleTimeString('es-AR')}
+                {searchInfo.cached && ' (caché)'}
+              </p>
+            )}
           </div>
-          <Button onClick={fetchTrends} className="h-11 px-6 text-base">
-            {loading ? 'Buscando…' : 'Buscar tendencias en X'}
-          </Button>
+          <div className="flex flex-col items-end gap-2">
+            <Button onClick={fetchTrends} className="h-11 px-6 text-base" disabled={loading}>
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Buscando…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Buscar tendencias en X
+                </>
+              )}
+            </Button>
+            {searchInfo.accounts && searchInfo.accounts.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Fuentes: @{searchInfo.accounts.slice(0, 3).join(', @')}...
+              </p>
+            )}
+          </div>
         </div>
       </section>
       <section className="mb-6">
@@ -246,7 +285,14 @@ export default function HomePage() {
         {trends.map((t) => (
           <article key={t.id} className={`card group ${selectedIds.has(t.id) ? 'ring-2 ring-accent' : ''}`}>
             <div className="flex items-start justify-between gap-3">
-              <h3 className="font-semibold leading-tight pr-2">{t.title}</h3>
+              <div className="flex-1">
+                <h3 className="font-semibold leading-tight pr-2">{t.title}</h3>
+                {t.score >= 80 && (
+                  <div className="inline-flex items-center gap-1 mt-1">
+                    <span className="text-xs font-medium text-orange-500">🔥 Trending</span>
+                  </div>
+                )}
+              </div>
               <button
                 className={`badge ${selectedIds.has(t.id) ? 'bg-accent text-accent-foreground' : ''}`}
                 onClick={() => toggleSelect(t.id)}
@@ -261,9 +307,18 @@ export default function HomePage() {
                   <span key={tag} className="badge">#{tag}</span>
                 ))}
               </div>
-              {t.sourceUrl && (
-                <a className="text-xs text-accent hover:underline" href={t.sourceUrl} target="_blank" rel="noreferrer">Fuente</a>
-              )}
+              <div className="flex items-center gap-2">
+                {t.score >= 70 && (
+                  <div className="flex gap-0.5">
+                    {[...Array(Math.min(3, Math.floor(t.score / 30)))].map((_, i) => (
+                      <span key={i} className="text-xs text-orange-400">●</span>
+                    ))}
+                  </div>
+                )}
+                {t.sourceUrl && (
+                  <a className="text-xs text-accent hover:underline" href={t.sourceUrl} target="_blank" rel="noreferrer">Fuente</a>
+                )}
+              </div>
             </div>
           </article>
         ))}
