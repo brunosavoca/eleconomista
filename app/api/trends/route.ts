@@ -10,7 +10,7 @@ No inventes datos: usa Live Search y cita fuentes si están disponibles.`
 
 export async function GET() {
   try {
-    const model = xai('grok-4-0709')
+    const model = xai('grok-3-latest')
 
     const { text, sources } = await generateText({
       model,
