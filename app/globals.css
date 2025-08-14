@@ -2,26 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
+@layer base {
+  :root {
+    /* Light theme colors */
+    --primary: 214 100% 97%; /* Light blue-gray */
+    --primary-foreground: 222 47% 11%; /* Dark blue-gray */
+    
+    --accent: 160 84% 39%; /* Emerald */
+    --accent-foreground: 0 0% 100%; /* White */
+    
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 222 47% 11%; /* Dark blue-gray */
+    
+    --muted: 210 40% 96%; /* Light gray */
+    --muted-foreground: 215 16% 47%; /* Medium gray */
+    
+    --background: 0 0% 100%; /* White */
+    --foreground: 222 47% 11%; /* Dark blue-gray */
+    
+    --border: 214 32% 91%; /* Light border */
+    --input: 214 32% 91%; /* Light input border */
+    --ring: 160 84% 39%; /* Emerald focus ring */
+    
+    color-scheme: light;
+  }
+  
+  .dark {
+    /* Dark theme colors */
+    --primary: 222 47% 11%; /* Dark blue-gray */
+    --primary-foreground: 210 40% 96%; /* Light gray */
+    
+    --accent: 160 84% 39%; /* Emerald */
+    --accent-foreground: 160 84% 10%; /* Dark emerald */
+    
+    --card: 222 47% 8%; /* Very dark blue */
+    --card-foreground: 213 31% 91%; /* Light gray */
+    
+    --muted: 223 47% 6%; /* Very dark */
+    --muted-foreground: 215 20% 65%; /* Medium gray */
+    
+    --background: 222 47% 11%; /* Dark blue-gray */
+    --foreground: 210 40% 96%; /* Light gray */
+    
+    --border: 217 33% 17%; /* Dark border */
+    --input: 217 33% 17%; /* Dark input border */
+    --ring: 160 84% 39%; /* Emerald focus ring */
+    
+    color-scheme: dark;
+  }
 }
 
 .glass {
-  @apply bg-card/60 backdrop-blur-md border border-white/5 shadow-soft;
+  @apply bg-card/60 backdrop-blur-md border border-border shadow-soft;
 }
 
 .btn {
   @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors;
 }
 .btn-primary {
-  @apply btn bg-accent text-accent-foreground hover:bg-emerald-400/90;
+  @apply btn bg-accent text-accent-foreground hover:bg-accent/90;
 }
 .btn-muted {
   @apply btn bg-muted text-muted-foreground hover:bg-muted/80;
 }
 
 .card {
-  @apply glass rounded-xl p-4 hover:border-white/10 hover:shadow-lg transition-shadow;
+  @apply bg-card/90 border border-border rounded-xl p-4 hover:border-border/80 hover:shadow-lg transition-all;
 }
 
 /* Loading skeleton animation */
