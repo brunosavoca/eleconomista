@@ -77,15 +77,18 @@ IMPORTANTE:
 - Mezcla noticias confirmadas con especulaciones y análisis
 - Varía entre temas macro, micro, empresas, commodities y cripto
 
-Devuelve hasta 18 tendencias ÚNICAS y ACTUALES. Cada ítem debe tener:
+ Devuelve hasta 18 tendencias ÚNICAS y ACTUALES. Cada ítem debe tener (OBLIGATORIO):
 - title: máx 90 chars, debe ser llamativo y actual
 - summary: 1-2 frases con información específica y números cuando sea posible
 - score: 0-100 según qué tan "caliente" está el tema ahora
 - tags: 3-6 hashtags relevantes
-- sourceUrl: si existe, preferiblemente de X o medios argentinos
+- sourceIndex: índice (1-based) que referencia UNA de las citas devueltas por Live Search (citas = arreglo de fuentes que acompaña tu respuesta). Debes elegir la mejor fuente que sustenta ese ítem. Solo 1 índice por tendencia.
+- (opcional) sourceUrl: si dispones de la URL exacta de la cita elegida, puedes incluirla, pero DEBE coincidir con una de las citas.
 
-NO repitas información genérica. Cada tendencia debe ser específica del momento actual.
-Formatea la salida estrictamente como JSON válido bajo la clave "trends" (array).`
+Reglas de formato y calidad:
+- No repitas información genérica. Cada tendencia debe ser específica del momento actual.
+- Cada objeto debe incluir un campo sourceIndex (número entero >=1). Evita textos como "N/A".
+- Formatea la salida estrictamente como JSON válido bajo la clave "trends" (array).`
 }
 
 // Datos de prueba para desarrollo local
@@ -172,7 +175,8 @@ export async function GET() {
     }
 
     const model = xai('grok-3-latest')
-    const selectedAccounts = getRandomElements(X_ACCOUNTS_SETS, 2).flat()
+    // Cap at 10 handles per xAI API limits
+    const selectedAccounts = getRandomElements(X_ACCOUNTS_SETS, 2).flat().slice(0, 10)
     const dynamicPrompt = generateDynamicPrompt()
 
     const { text, sources } = await generateText({
@@ -183,7 +187,7 @@ export async function GET() {
           searchParameters: {
             mode: 'on',
             returnCitations: true,
-            maxSearchResults: 30,
+            maxSearchResults: 10,
             sources: [
               { type: 'x', xHandles: selectedAccounts },
               { type: 'news', country: 'AR', safeSearch: true },
@@ -191,6 +195,8 @@ export async function GET() {
           },
         },
       },
+      // Hint para forzar URLs en la salida
+      maxRetries: 1,
     })
 
     // Try parse JSON block
@@ -205,22 +211,34 @@ export async function GET() {
       }
     }
 
-    const trends = Array.isArray(parsed?.trends) ? parsed.trends : []
+    let trends = Array.isArray(parsed?.trends) ? parsed.trends : []
 
     // Normalize structure con IDs únicos basados en timestamp
     const timestamp = Date.now()
-    const normalized = trends.map((t: any, idx: number) => ({
+    const normalized = trends
+      .map((t: any, idx: number) => ({
       id: `${timestamp}-${idx}`,
       title: String(t.title ?? '').slice(0, 120),
       summary: String(t.summary ?? ''),
       score: Number.isFinite(t.score) ? Number(t.score) : Math.floor(Math.random() * 30 + 50),
       tags: Array.isArray(t.tags) ? t.tags.map((x: any) => String(x)) : [],
-      sourceUrl: t.sourceUrl ? String(t.sourceUrl) : undefined,
+        // Preferir mapeo por índice de cita si está presente
+        sourceUrl: (() => {
+          const idxFromModel = Number(t.sourceIndex)
+          if (Number.isInteger(idxFromModel) && idxFromModel >= 1 && Array.isArray(sources) && sources.length >= idxFromModel) {
+            const s = (sources as any[])[idxFromModel - 1]
+            if (s?.sourceType === 'url' && typeof s?.url === 'string') return s.url as string
+          }
+          const url = t.sourceUrl ? String(t.sourceUrl) : undefined
+          return url && /^https?:\/\//i.test(url) ? url : undefined
+        })(),
       timestamp: new Date().toISOString(),
     }))
 
+    // Filtramos cualquier ítem que aún no tenga URL válida
+    const withValidSource = normalized.filter((t: any) => typeof t.sourceUrl === 'string' && /^https?:\/\//i.test(t.sourceUrl))
     // Mezclamos un poco el orden para más variación
-    const shuffledNormalized = normalized.sort(() => 0.5 - Math.random())
+    const shuffledNormalized = withValidSource.sort(() => 0.5 - Math.random())
     
     // Actualizamos cache
     cachedTrends = shuffledNormalized
