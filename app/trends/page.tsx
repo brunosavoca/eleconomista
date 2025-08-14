@@ -50,11 +50,27 @@ export default function HomePage() {
   const [article, setArticle] = useState<string>('')
   const [hasSearched, setHasSearched] = useState(false)
   const [searchInfo, setSearchInfo] = useState<{accounts?: string[], timestamp?: string, cached?: boolean}>({})
+  const [serverStats, setServerStats] = useState<{sourcesCount?: number, trendCount?: number, selectedAccountsCount?: number, sourceTypeCounters?: Record<string, number>} | undefined>(undefined)
   const [lastSearchTime, setLastSearchTime] = useState<Date | null>(null)
+  const [serverMessage, setServerMessage] = useState<string | undefined>(undefined)
   const draftRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const revealTimerRef = useRef<number | null>(null)
   const [copied, setCopied] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(0)
   // const [editorContent, setEditorContent] = useState<string>('')
+  const loadingSteps = useMemo(
+    () => [
+      'Armando un prompt dinámico con foco horario y temas prioritarios…',
+      'Activando Live Search en X y medios locales para recolectar señales…',
+      'Analizando resultados y extrayendo tendencias únicas y actuales…',
+      'Validando citas y URLs de fuente para cada tendencia…',
+      'Puntuando, ordenando y preparando tarjetas para mostrar…',
+      'Listo. Renderizando resultados…',
+    ],
+    []
+  )
+  const [topbarProgress, setTopbarProgress] = useState(0)
   const progressSteps = useMemo(
     () => [
       'Preparando tópicos seleccionados',
@@ -76,11 +92,58 @@ export default function HomePage() {
     setHasSearched(true)
     setLoading(true)
     setSelectedIds(new Set()) // Limpiar selección al buscar nuevas tendencias
+    setServerMessage(undefined)
+    // Reiniciar render progresivo
+    if (revealTimerRef.current) {
+      window.clearInterval(revealTimerRef.current)
+      revealTimerRef.current = null
+    }
+    setVisibleCount(0)
+    setTopbarProgress(12)
     try {
+      setTopbarProgress(18)
       const res = await fetch('/api/trends', { cache: 'no-store' })
       if (!res.ok) throw new Error('Error fetching trends')
+      setTopbarProgress(48)
       const data = await res.json()
+      setTopbarProgress(66)
       setTrends(data.trends as Trend[])
+      // Iniciar render progresivo de tarjetas
+      const total = Array.isArray(data.trends) ? data.trends.length : 0
+      if (total > 0) {
+        const INITIAL_RENDER_COUNT = 6
+        const CHUNK_SIZE = 6
+        const CHUNK_DELAY_MS = 160
+        setVisibleCount(Math.min(INITIAL_RENDER_COUNT, total))
+        if (revealTimerRef.current) {
+          window.clearInterval(revealTimerRef.current)
+        }
+        const id = window.setInterval(() => {
+          setVisibleCount((c) => {
+            if (c >= total) {
+              window.clearInterval(id)
+              revealTimerRef.current = null
+              return c
+            }
+            const next = Math.min(c + CHUNK_SIZE, total)
+            if (next >= total) {
+              window.clearInterval(id)
+              revealTimerRef.current = null
+            }
+            return next
+          })
+        }, CHUNK_DELAY_MS)
+        revealTimerRef.current = id
+      }
+      setTopbarProgress(82)
+      if (typeof data.message === 'string' && data.message.trim().length > 0) {
+        setServerMessage(data.message)
+      }
+      if (data.stats) {
+        setServerStats(data.stats)
+      } else {
+        setServerStats(undefined)
+      }
       setSearchInfo({
         accounts: data.searchParams?.accounts,
         timestamp: data.searchParams?.timestamp,
@@ -89,10 +152,22 @@ export default function HomePage() {
       setLastSearchTime(new Date())
     } catch (err) {
       console.error(err)
+      setServerMessage('No hay datos disponibles por el momento. Intenta nuevamente en unos segundos.')
     } finally {
       setLoading(false)
+      setTopbarProgress(100)
     }
   }
+
+  // Limpiar temporizador en unmount
+  useEffect(() => {
+    return () => {
+      if (revealTimerRef.current) {
+        window.clearInterval(revealTimerRef.current)
+        revealTimerRef.current = null
+      }
+    }
+  }, [])
 
   const selectedTrends = useMemo(
     () => trends.filter(t => selectedIds.has(t.id)),
@@ -166,8 +241,39 @@ export default function HomePage() {
     return () => window.clearInterval(interval)
   }, [generating, progressSteps.length])
 
+  // Derive current loading step from topbarProgress
+  const currentLoadingStep = useMemo(() => {
+    if (!loading) return ''
+    const bucket = Math.floor((topbarProgress || 0) / (100 / loadingSteps.length))
+    const idx = Math.min(loadingSteps.length - 1, Math.max(0, bucket))
+    return `Paso ${idx + 1}/${loadingSteps.length}: ${loadingSteps[idx]}`
+  }, [loading, topbarProgress, loadingSteps])
+
+  // Simulate top loading bar progress
+  useEffect(() => {
+    if (!loading) {
+      setTopbarProgress(100)
+      const timeout = window.setTimeout(() => setTopbarProgress(0), 300)
+      return () => window.clearTimeout(timeout)
+    }
+    setTopbarProgress(8)
+    const id = window.setInterval(() => {
+      setTopbarProgress((p) => {
+        if (p >= 90) return p
+        const increment = Math.random() * 12
+        return Math.min(p + increment, 90)
+      })
+    }, 350)
+    return () => window.clearInterval(id)
+  }, [loading])
+
   return (
     <main>
+      {loading && (
+        <div className="loading-topbar">
+          <div className="bar" style={{ width: `${topbarProgress}%`, transition: 'width 300ms ease' }} />
+        </div>
+      )}
       <div className="mb-6 flex items-center gap-4">
         <button
           onClick={() => router.push('/')}
@@ -249,41 +355,72 @@ export default function HomePage() {
           <>
             <div className="col-span-full flex items-center gap-3 p-3 rounded-md bg-card border border-border">
               <div className="h-5 w-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-              <div className="font-medium text-foreground">Buscando tendencias en X…</div>
-              <div className="ml-auto text-xs text-muted-foreground">economía · finanzas · AR</div>
+              <div className="font-medium text-foreground">{currentLoadingStep}</div>
+              <div className="ml-auto text-xs text-muted-foreground flex items-center gap-3">
+                <span>economía · finanzas · AR</span>
+                {serverStats?.selectedAccountsCount != null && (
+                  <span>{serverStats.selectedAccountsCount} cuentas</span>
+                )}
+                {serverStats?.sourcesCount != null && serverStats.sourcesCount > 0 && (
+                  <span>{serverStats.sourcesCount} fuentes</span>
+                )}
+              </div>
             </div>
 
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="card animate-pulse">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="h-5 w-3/4 rounded bg-muted" />
-                  <div className="h-6 w-20 rounded bg-accent/20" />
+                  <div className="h-5 w-3/4 skeleton" />
+                  <div className="h-6 w-20 skeleton" />
                 </div>
                 <div className="mt-3 space-y-2">
-                  <div className="h-4 w-full rounded bg-muted" />
-                  <div className="h-4 w-11/12 rounded bg-muted" />
-                  <div className="h-4 w-10/12 rounded bg-muted" />
+                  <div className="h-4 w-full skeleton" />
+                  <div className="h-4 w-11/12 skeleton" />
+                  <div className="h-4 w-10/12 skeleton" />
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                   <div className="flex gap-2">
-                    <div className="h-6 w-16 rounded bg-muted" />
-                    <div className="h-6 w-14 rounded bg-muted" />
-                    <div className="h-6 w-12 rounded bg-muted" />
+                    <div className="h-6 w-16 skeleton" />
+                    <div className="h-6 w-14 skeleton" />
+                    <div className="h-6 w-12 skeleton" />
                   </div>
-                  <div className="h-4 w-14 rounded bg-muted" />
+                  <div className="h-4 w-14 skeleton" />
                 </div>
               </div>
             ))}
           </>
         )}
         {!loading && trends.length === 0 && hasSearched && (
-          <div className="col-span-full text-muted-foreground">Sin resultados por ahora.</div>
+          <div className="col-span-full text-muted-foreground" aria-live="polite">
+            {serverMessage || 'No hay datos disponibles por el momento.'}
+          </div>
         )}
         {!loading && trends.length === 0 && !hasSearched && (
           <div className="col-span-full text-muted-foreground">Haz clic en “Buscar tendencias en X” para comenzar.</div>
         )}
-        {trends.map((t) => (
-          <article key={t.id} className={`card group ${selectedIds.has(t.id) ? 'ring-2 ring-accent' : ''}`}>
+        {!loading && trends.length > 0 && visibleCount < trends.length && (
+          <div className="col-span-full text-xs text-muted-foreground" aria-live="polite">
+            Mostrando {visibleCount} de {trends.length} resultados…
+          </div>
+        )}
+        {trends.slice(0, visibleCount || trends.length).map((t) => (
+          <article
+            key={t.id}
+            className={`card group relative cursor-pointer select-none ${selectedIds.has(t.id) ? 'ring-2 ring-accent/60' : ''}`}
+            onClick={() => toggleSelect(t.id)}
+            role="button"
+            aria-pressed={selectedIds.has(t.id)}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                toggleSelect(t.id)
+              }
+            }}
+          >
+            {selectedIds.has(t.id) && (
+              <div className="absolute inset-0 rounded-xl bg-accent/5 pointer-events-none" />
+            )}
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
                 <h3 className="font-semibold leading-tight pr-2">{t.title}</h3>
@@ -295,7 +432,7 @@ export default function HomePage() {
               </div>
               <button
                 className={`badge ${selectedIds.has(t.id) ? 'bg-accent text-accent-foreground' : ''}`}
-                onClick={() => toggleSelect(t.id)}
+                onClick={(e) => { e.stopPropagation(); toggleSelect(t.id) }}
               >
                 {selectedIds.has(t.id) ? 'Seleccionado' : 'Elegir'}
               </button>
@@ -316,7 +453,7 @@ export default function HomePage() {
                   </div>
                 )}
                 {t.sourceUrl && (
-                  <a className="text-xs text-accent hover:underline" href={t.sourceUrl} target="_blank" rel="noreferrer">Fuente</a>
+                  <a className="text-xs text-accent hover:underline" href={t.sourceUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>Fuente</a>
                 )}
               </div>
             </div>

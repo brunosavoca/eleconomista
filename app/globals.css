@@ -85,3 +85,28 @@
   @apply inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground;
 }
 
+/* Shimmer skeletons for loading state */
+.skeleton {
+  @apply relative overflow-hidden bg-muted rounded;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  animation: ee-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes ee-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Top loading bar */
+.loading-topbar {
+  @apply fixed left-0 right-0 top-0 h-[3px] z-50 bg-accent/20;
+}
+.loading-topbar .bar {
+  @apply h-full bg-accent;
+}
+

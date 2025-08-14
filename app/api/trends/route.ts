@@ -146,15 +146,19 @@ const CACHE_TTL = 60000 // 1 minuto de cache
 
 export async function GET() {
   try {
-    // Si no hay API key, devolvemos datos de prueba en desarrollo
+    // Si no hay API key, NO devolvemos mock: informamos que no hay datos disponibles
     if (!process.env.XAI_API_KEY) {
-      console.log('No XAI_API_KEY found, returning mock data for development')
-      const mockTrends = generateMockTrends()
-      return NextResponse.json({ 
-        trends: mockTrends,
-        mock: true,
+      console.warn('No XAI_API_KEY found, returning empty data with message')
+      return NextResponse.json({
+        trends: [],
+        message: 'No hay datos disponibles en este momento. Configure XAI_API_KEY para habilitar la búsqueda de tendencias.',
+        stats: {
+          sourcesCount: 0,
+          trendCount: 0,
+          selectedAccountsCount: 0,
+        },
         searchParams: {
-          accounts: getRandomElements(X_ACCOUNTS_SETS, 1)[0].slice(0, 6),
+          accounts: [],
           timestamp: new Date().toISOString(),
         }
       })
@@ -164,9 +168,15 @@ export async function GET() {
     const now = Date.now()
     if (cachedTrends.length > 0 && (now - lastFetchTime) < CACHE_TTL) {
       const shuffled = [...cachedTrends].sort(() => 0.5 - Math.random())
+      const result = shuffled.slice(0, 12)
       return NextResponse.json({ 
-        trends: shuffled.slice(0, 12),
+        trends: result,
         cached: true,
+        stats: {
+          sourcesCount: undefined,
+          trendCount: result.length,
+          selectedAccountsCount: undefined,
+        },
         searchParams: {
           accounts: getRandomElements(X_ACCOUNTS_SETS, 1)[0].slice(0, 6),
           timestamp: new Date().toISOString(),
@@ -244,9 +254,23 @@ export async function GET() {
     cachedTrends = shuffledNormalized
     lastFetchTime = now
 
+    const sourceTypeCounters = Array.isArray(sources)
+      ? (sources as any[]).reduce((acc: Record<string, number>, s: any) => {
+          const key = typeof s?.sourceType === 'string' ? s.sourceType : 'unknown'
+          acc[key] = (acc[key] || 0) + 1
+          return acc
+        }, {})
+      : {}
+
     return NextResponse.json({ 
       trends: shuffledNormalized, 
       sources: sources ?? [],
+      stats: {
+        sourcesCount: Array.isArray(sources) ? (sources as any[]).length : 0,
+        trendCount: shuffledNormalized.length,
+        selectedAccountsCount: selectedAccounts.length,
+        sourceTypeCounters,
+      },
       searchParams: {
         accounts: selectedAccounts.slice(0, 6),
         timestamp: new Date().toISOString(),
@@ -255,14 +279,18 @@ export async function GET() {
   } catch (error) {
     console.error('Error fetching trends:', error)
     
-    // En caso de error, devolvemos datos de prueba
-    const mockTrends = generateMockTrends()
-    return NextResponse.json({ 
-      trends: mockTrends,
-      fallback: true,
+    // En caso de error, NO devolvemos mock: informamos que no hay datos disponibles
+    return NextResponse.json({
+      trends: [],
+      message: 'No hay datos disponibles por el momento. Intenta nuevamente en unos segundos.',
       error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined,
+      stats: {
+        sourcesCount: 0,
+        trendCount: 0,
+        selectedAccountsCount: 0,
+      },
       searchParams: {
-        accounts: getRandomElements(X_ACCOUNTS_SETS, 1)[0].slice(0, 6),
+        accounts: [],
         timestamp: new Date().toISOString(),
       }
     })
