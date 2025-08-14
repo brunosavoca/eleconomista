@@ -18,10 +18,13 @@ export default function RootLayout({
         <div className="w-full">
           {/* Top brand bar */}
           <div className="bg-black text-white">
-            <div className="max-w-6xl mx-auto px-4 h-12 flex items-center justify-start">
-              <div className="flex items-center gap-2">
+            <div className="max-w-6xl mx-auto px-3 h-11 flex items-center">
+              <div className="flex items-center gap-1">
                 <img src="/logo-eleconomista.svg" alt="El Economista" className="h-6 w-auto" />
-                <div className="text-cyan-300 text-sm font-semibold hidden md:block">DEV</div>
+                {/* <div className="text-cyan-300 text-[11px] leading-none font-semibold hidden md:block">DEV</div> */}
+              </div>
+              <div className="ml-auto">
+                <div className="text-cyan-300 text-[11px] leading-none font-semibold hidden md:block">DEV</div>
               </div>
               {false && (
                 <div className="flex items-center gap-6 text-sm text-zinc-300 ml-auto">

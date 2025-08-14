@@ -193,7 +193,38 @@ export default function HomePage() {
 
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading && (
-          <div className="col-span-full text-muted-foreground">Cargando tendencias…</div>
+          <>
+            {/* Old minimal loader (kept for reference) */}
+            {/* <div className="col-span-full text-muted-foreground">Cargando tendencias…</div> */}
+
+            <div className="col-span-full flex items-center gap-3 p-3 rounded-md bg-white/5 border border-white/10">
+              <div className="h-5 w-5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+              <div className="font-medium text-zinc-200">Buscando tendencias en X…</div>
+              <div className="ml-auto text-xs text-zinc-400">economía · finanzas · AR</div>
+            </div>
+
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="card animate-pulse">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="h-5 w-3/4 rounded bg-white/10" />
+                  <div className="h-6 w-20 rounded bg-emerald-400/20" />
+                </div>
+                <div className="mt-3 space-y-2">
+                  <div className="h-4 w-full rounded bg-white/10" />
+                  <div className="h-4 w-11/12 rounded bg-white/10" />
+                  <div className="h-4 w-10/12 rounded bg-white/10" />
+                </div>
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <div className="h-6 w-16 rounded bg-white/10" />
+                    <div className="h-6 w-14 rounded bg-white/10" />
+                    <div className="h-6 w-12 rounded bg-white/10" />
+                  </div>
+                  <div className="h-4 w-14 rounded bg-white/10" />
+                </div>
+              </div>
+            ))}
+          </>
         )}
         {!loading && trends.length === 0 && hasSearched && (
           <div className="col-span-full text-muted-foreground">Sin resultados por ahora.</div>
