@@ -15,6 +15,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Prevent FOUC by setting theme immediately
+              try {
+                const theme = localStorage.getItem('theme');
+                if (theme === 'dark' || 
+                    (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.classList.add('dark');
+                }
+              } catch {}
+            `,
+          }}
+        />
+      </head>
       <body className="bg-background text-foreground antialiased min-h-screen">
         <div className="w-full">
           {/* Top brand bar */}
