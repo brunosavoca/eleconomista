@@ -1,3 +1,5 @@
 {
-  "/api/trends/route": "app/api/trends/route.js"
+  "/api/trends/route": "app/api/trends/route.js",
+  "/page": "app/page.js",
+  "/trends/page": "app/trends/page.js"
 }
